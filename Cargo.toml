@@ -1,0 +1,9 @@
+[package]
+name = "eng-clock"
+version = "0.0.1"
+authors = ["RW Penney <rwpenney@users.sourceforge.net>"]
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.24"
+gtk = "0.15"
