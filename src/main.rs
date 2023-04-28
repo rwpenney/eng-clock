@@ -7,12 +7,48 @@ use gtk::glib;
 use gtk::prelude::*;
 use std::thread;
 
-use eng_clock::{ Ticker, Timestamp, UImessage };
+use eng_clock::{ Ticker, TickEvent, UImessage, utc_now };
 
 
-fn receive_tick(t: Timestamp, hms_label: &gtk::Label) {
-    let hms_txt = format!("{}", t.format("%H:%M:%S"));
-    hms_label.set_text(&hms_txt);
+#[derive(Clone)]
+struct Widgets {
+    hms_label: gtk::Label,
+    phase_label: gtk::Label
+}
+
+impl Widgets {
+    const PHASE_CHARS: [char; 4] = [ '=', ':', '.', ':' ];
+
+    pub fn new(root: &gtk::ApplicationWindow) -> Widgets {
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 16);
+        root.add(&hbox);
+
+        let hms_label = gtk::Label::new(None);
+        hbox.pack_start(&hms_label, false, false, 3);
+
+        let phase_label = gtk::Label::new(None);
+        hbox.pack_start(&phase_label, false, false, 3);
+
+        Widgets {
+            hms_label,
+            phase_label
+        }
+    }
+
+    pub fn receive_tick(&self, event: TickEvent) {
+        let hms_txt =
+            format!(r#"<span foreground="blue" size="x-large">{}</span>"#,
+                    event.t_nominal.format("%H:%M:%S"));
+        self.hms_label.set_markup(&hms_txt);
+
+        let phase = (event.tick_id % 4) as usize;
+        let phase_txt = format!(r#"<span size="small">{}</span>"#,
+                                Widgets::PHASE_CHARS[phase]);
+        self.phase_label.set_markup(&phase_txt);
+
+        let latency_us = (utc_now() - event.t_transmit).num_microseconds().unwrap_or(0);
+        println!("Latency= {latency_us}us")
+    }
 }
 
 
@@ -23,17 +59,16 @@ fn on_activate(app: &gtk::Application) {
     win.set_position(gtk::WindowPosition::Center);
     win.set_default_size(200, 100);
 
-    let hms_label = gtk::Label::new(None);
-    win.add(&hms_label);
+    let widgets = Widgets::new(&win);
 
     let (sender, receiver) =
-        glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        glib::MainContext::channel(glib::PRIORITY_HIGH);
 
-    {   let hms = hms_label.clone();
+    {   let w = widgets.clone();
 
         receiver.attach(None, move |msg| {
             match msg {
-                UImessage::Tick(t) => receive_tick(t, &hms)
+                UImessage::Tick(event) => w.receive_tick(event)
             };
             glib::Continue(true)
         });
