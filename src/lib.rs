@@ -20,6 +20,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>
  */
 
+pub mod stats;
 mod ticker;
 
 use gtk::glib;
@@ -56,5 +57,7 @@ pub fn utc_now() -> Timestamp {
     chrono::Utc::now()
 }
 
+#[cfg(test)]
+mod testing;
 
 // (C)Copyright 2023, RW Penney
