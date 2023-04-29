@@ -1,6 +1,6 @@
 # UTC Engineering Clock
 
-`enc-clock` is a simple Rust application that shows a live display of the current time,
+`eng-clock` is a simple Rust application that shows a live display of the current time,
 but taking particular care to accurately synchronize screen updates to transitions
 from one second to the next. (Note that some desktop clock applications may
 simply provide updates every second, but at an arbitrary offset from

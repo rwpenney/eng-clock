@@ -1,7 +1,6 @@
 [package]
 name = "eng-clock"
 version = "0.0.1"
-authors = ["RW Penney <rwpenney@users.sourceforge.net>"]
 edition = "2021"
 
 [dependencies]

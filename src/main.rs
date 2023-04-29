@@ -17,16 +17,19 @@
 
 use gtk::glib;
 use gtk::prelude::*;
-use std::thread;
+use std::{ rc::Rc, thread };
 
 use eng_clock::{ Ticker, TickEvent, UImessage, UIsender, utc_now };
+use eng_clock::stats::ExpoAvg;
 
 
 /// Collection of GTK widgets that may need dynamic updates
 #[derive(Clone)]
 struct Widgets {
     hms_label: gtk::Label,
-    phase_label: gtk::Label
+    phase_label: gtk::Label,
+
+    avg_latency: Rc<ExpoAvg>
 }
 
 impl Widgets {
@@ -42,7 +45,8 @@ impl Widgets {
 
         Widgets {
             hms_label,
-            phase_label
+            phase_label,
+            avg_latency: Rc::new(ExpoAvg::new(0.1))
         }
     }
 
@@ -50,7 +54,7 @@ impl Widgets {
     pub fn init_channel(&self) -> UIsender {
         let (sender, receiver) =
             glib::MainContext::channel(glib::PRIORITY_HIGH);
-        let w = self.clone();
+        let mut w = self.clone();
 
         receiver.attach(None, move |msg| {
             match msg {
@@ -63,7 +67,7 @@ impl Widgets {
     }
 
     /// Update GUI elements after receiving clock-tick from Ticker
-    pub fn receive_tick(&self, event: TickEvent) {
+    pub fn receive_tick(&mut self, event: TickEvent) {
         const PHASE_CHARS: [char; 4] = [ '=', '.', ':', '\'' ];
 
         let hms_txt = format!(r#"<span size="x-large">{}</span>"#,
@@ -75,9 +79,10 @@ impl Widgets {
                                 PHASE_CHARS[phase]);
         self.phase_label.set_markup(&phase_txt);
 
-        let latency_us = (utc_now() - event.t_transmit).num_microseconds().unwrap_or(0);
+        let latency = utc_now() - event.t_transmit;
+        let avg_latency = Rc::get_mut(&mut self.avg_latency).map(|ea| ea.add_duration(latency)).expect("ExpoAvg should be accessible");
         // FIXME - screen-update latency is likely to be sub-millisecond, but might be worth including in ticker offset
-        println!("Latency= {latency_us}us")
+        if phase == 0 { println!("Latency= {avg_latency}") };
     }
 }
 

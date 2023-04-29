@@ -31,8 +31,6 @@ impl Ticker {
                 UImessage::Tick(TickEvent { t_nominal, t_transmit, tick_id })
             ).unwrap();
 
-            println!("Ticking: {} / {}", t_nominal, t_transmit);
-
             // FIXME - read incoming messages here
         }
     }

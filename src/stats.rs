@@ -7,6 +7,7 @@ use chrono;
 
 
 /// Exponentially smoothed moving average filter
+#[derive(Clone, Copy)]
 pub struct ExpoAvg {
     eps: f64,
     numerator: f64,
