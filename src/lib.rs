@@ -1,76 +1,60 @@
 /*
- *  Clock-ticking mechanisms for engineering clock display
+ *  Supporting functions for engineering clock display
  *  RW Penney, April 2023
  */
 
+/*  eng-clock - a dynamically synchronized realtime clock display
+    Copyright (C) 2023, RW Penney
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>
+ */
+
+mod ticker;
+
 use gtk::glib;
-use std::thread;
 
 pub type Timestamp = chrono::DateTime<chrono::Utc>;
-type UIsender = glib::Sender<UImessage>;
+pub type UIsender = glib::Sender<UImessage>;
+pub type Ticker = ticker::Ticker;
 
 
+/// Clock-ticking event
 #[derive(Clone, Copy)]
 pub struct TickEvent {
+    /// The (corrected) time that should be displayed to the user
     pub t_nominal: Timestamp,
+
+    /// The (uncorrected) time at which this message was sent
     pub t_transmit: Timestamp,
+
+    /// The number of ticks since an arbitrary origin, typically the POSIX epoch
     pub tick_id: i64
 }
 
 
+/// Messages that can be sent asynchronously to GTK main loop from other threads
 pub enum UImessage {
     Tick(TickEvent)
     // Add clock-offset stats
 }
 
 
+/// Get current time in UTC timezone
 #[inline]
 pub fn utc_now() -> Timestamp {
     chrono::Utc::now()
 }
 
-
-pub struct Ticker {
-    channel: UIsender
-}
-
-impl Ticker {
-    const PERIOD_US: i64 = 250_000;
-
-    pub fn new(channel: &UIsender) -> Ticker {
-        Ticker {
-            channel: channel.clone()
-        }
-    }
-
-    pub fn run(&self) {
-        loop {
-            let (t_nominal, tick_id) = self.wait_next();
-            let t_transmit = utc_now();
-
-            self.channel.send(
-                UImessage::Tick(TickEvent { t_nominal, t_transmit, tick_id })
-            ).unwrap();
-
-            println!("Ticking: {} / {}", t_nominal, t_transmit);
-
-            // FIXME - read incoming messages here
-        }
-    }
-
-    #[inline]
-    fn wait_next(&self) -> (Timestamp, i64) {
-        let now = utc_now();
-
-        let now_us = now.timestamp_micros();
-        let tick_id = (now_us + Ticker::PERIOD_US) / Ticker::PERIOD_US;
-        let step_us = (tick_id * Ticker::PERIOD_US) - now_us;
-        // FIXME - apply clock-offset correction
-
-        thread::sleep(std::time::Duration::from_micros(step_us as u64));
-
-        ( now + chrono::Duration::microseconds(step_us), tick_id )
-    }
-}
 
 // (C)Copyright 2023, RW Penney
