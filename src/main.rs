@@ -17,7 +17,7 @@
 
 use gtk::glib;
 use gtk::prelude::*;
-use std::{ rc::Rc, thread };
+use std::{ cell::RefCell, rc::Rc, thread };
 
 use eng_clock::{ Ticker, TickEvent, UImessage, UIsender, utc_now };
 use eng_clock::stats::ExpoAvg;
@@ -28,14 +28,18 @@ use eng_clock::stats::ExpoAvg;
 struct Widgets {
     hms_label: gtk::Label,
     phase_label: gtk::Label,
+    latency_label: gtk::Label,
 
-    avg_latency: Rc<ExpoAvg>
+    avg_latency: Rc<RefCell<ExpoAvg>>
 }
 
 impl Widgets {
     pub fn new(root: &gtk::ApplicationWindow) -> Widgets {
-        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 16);
-        root.add(&hbox);
+        let vbox = gtk::Box::new(gtk::Orientation::Vertical, 4);
+        root.add(&vbox);
+
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        vbox.pack_start(&hbox, false, false, 2);
 
         let hms_label = gtk::Label::new(None);
         hbox.pack_start(&hms_label, false, false, 3);
@@ -43,10 +47,17 @@ impl Widgets {
         let phase_label = gtk::Label::new(None);
         hbox.pack_start(&phase_label, false, false, 3);
 
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        vbox.pack_start(&hbox, false, false, 2);
+
+        let latency_label = gtk::Label::new(None);
+        hbox.pack_start(&latency_label, false, false, 2);
+
         Widgets {
             hms_label,
             phase_label,
-            avg_latency: Rc::new(ExpoAvg::new(0.1))
+            latency_label,
+            avg_latency: Rc::new(RefCell::new(ExpoAvg::new(0.1)))
         }
     }
 
@@ -54,7 +65,7 @@ impl Widgets {
     pub fn init_channel(&self) -> UIsender {
         let (sender, receiver) =
             glib::MainContext::channel(glib::PRIORITY_HIGH);
-        let mut w = self.clone();
+        let w = self.clone();
 
         receiver.attach(None, move |msg| {
             match msg {
@@ -67,7 +78,7 @@ impl Widgets {
     }
 
     /// Update GUI elements after receiving clock-tick from Ticker
-    pub fn receive_tick(&mut self, event: TickEvent) {
+    pub fn receive_tick(&self, event: TickEvent) {
         const PHASE_CHARS: [char; 4] = [ '=', '.', ':', '\'' ];
 
         let hms_txt = format!(r#"<span size="x-large">{}</span>"#,
@@ -80,9 +91,15 @@ impl Widgets {
         self.phase_label.set_markup(&phase_txt);
 
         let latency = utc_now() - event.t_transmit;
-        let avg_latency = Rc::get_mut(&mut self.avg_latency).map(|ea| ea.add_duration(latency)).expect("ExpoAvg should be accessible");
+        let avg_latency = self.avg_latency.borrow_mut()
+                                          .add_duration(latency);
         // FIXME - screen-update latency is likely to be sub-millisecond, but might be worth including in ticker offset
-        if phase == 0 { println!("Latency= {avg_latency}") };
+        if phase == 0 {
+            let latency_txt = format!("UI latency: {:.2}ms",
+                    avg_latency.num_microseconds()
+                               .expect("UI latency should be finite") as f64 / 1e3);
+            self.latency_label.set_text(&latency_txt);
+        }
     }
 }
 

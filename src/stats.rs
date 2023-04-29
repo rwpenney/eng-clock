@@ -51,6 +51,7 @@ impl ExpoAvg {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use chrono::Duration;
