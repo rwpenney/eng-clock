@@ -15,6 +15,7 @@ pub struct ExpoAvg {
 }
 
 impl ExpoAvg {
+    /// Create new moving-average filter, with smoothing timescale 1.0/eps
     pub fn new(eps: f64) -> ExpoAvg {
         assert!(0.0 < eps && eps < 1.0);
 
@@ -25,7 +26,7 @@ impl ExpoAvg {
         }
     }
 
-    // Extract current estimator of moving mean
+    /// Extract current estimator of moving mean
     pub fn query(&self) -> Option<f64> {
         if self.denominator != 0.0 {
             Some(self.numerator / self.denominator)
@@ -34,7 +35,7 @@ impl ExpoAvg {
         }
     }
 
-    // Incorporate a new real-valued sample value, returning new average
+    /// Incorporate a new real-valued sample value, returning new average
     pub fn add_sample(&mut self, x: f64) -> f64 {
         self.numerator += self.eps * (x - self.numerator);
         self.denominator += self.eps * (1.0 - self.denominator);
@@ -42,7 +43,7 @@ impl ExpoAvg {
         self.numerator / self.denominator
     }
 
-    // Incorporate a new time-like sample, nominally in nanoseconds, returning new average
+    /// Incorporate a new time-like sample, nominally in nanoseconds, returning new average
     pub fn add_duration(&mut self, dt: chrono::Duration) -> chrono::Duration {
         let dt = self.add_sample(dt.num_nanoseconds()
                                    .map(|n| n as f64)

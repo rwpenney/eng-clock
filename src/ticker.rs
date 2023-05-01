@@ -3,23 +3,34 @@
  *  RW Penney, April 2023
  */
 
+use std::sync::mpsc;
 use std::thread;
 use chrono::{ NaiveDateTime, Utc };
-use crate::{ TickEvent, Timestamp, UImessage, UIsender, utc_now };
+use crate::{ OffsetEvent, TickEvent, Timestamp, UImessage, UIsender, utc_now };
 
 
 pub struct Ticker {
-    channel: UIsender
+    ui_channel: UIsender,
+    sync_sender: mpsc::Sender<OffsetEvent>,
+    sync_receiver: mpsc::Receiver<OffsetEvent>
 }
 
 impl Ticker {
     /// The time-interval between screen updates, in microseconds
     const PERIOD_US: i64 = 250_000;
 
-    pub fn new(channel: &UIsender) -> Ticker {
+    pub fn new(ui_channel: UIsender) -> Ticker {
+        let (sync_sender, sync_receiver) = mpsc::channel();
+
         Ticker {
-            channel: channel.clone()
+            ui_channel,
+            sync_sender,
+            sync_receiver
         }
+    }
+
+    pub fn get_sync(&self) -> mpsc::Sender<OffsetEvent> {
+        self.sync_sender.clone()
     }
 
     /// Entry-point for tick-generating thread communicating via GLIB messages
@@ -28,11 +39,14 @@ impl Ticker {
             let (t_nominal, tick_id) = self.wait_next();
             let t_transmit = utc_now();
 
-            self.channel.send(
+            self.ui_channel.send(
                 UImessage::Tick(TickEvent { t_nominal, t_transmit, tick_id })
             ).unwrap();
 
-            // FIXME - read incoming messages here
+            while let Ok(_offs) = self.sync_receiver.try_recv() {
+                //println!("Ticker received {:?} @ {}", offs, utc_now());
+                // FIXME - handle clock-offset update
+            }
         }
     }
 

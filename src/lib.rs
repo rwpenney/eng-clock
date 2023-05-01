@@ -20,8 +20,9 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>
  */
 
+pub mod sync;
 pub mod stats;
-mod ticker;
+pub mod ticker;
 
 use gtk::glib;
 
@@ -44,10 +45,17 @@ pub struct TickEvent {
 }
 
 
+/// Clock-offset update event
+#[derive(Clone, Copy, Debug)]
+pub struct OffsetEvent {
+    // FIXME - much more here
+}
+
+
 /// Messages that can be sent asynchronously to GTK main loop from other threads
 pub enum UImessage {
-    Tick(TickEvent)
-    // Add clock-offset stats
+    Tick(TickEvent),
+    Offset(OffsetEvent)
 }
 
 

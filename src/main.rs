@@ -19,8 +19,12 @@ use gtk::glib;
 use gtk::prelude::*;
 use std::{ cell::RefCell, rc::Rc, thread };
 
-use eng_clock::{ Ticker, TickEvent, UImessage, UIsender, utc_now };
-use eng_clock::stats::ExpoAvg;
+use eng_clock::{
+    OffsetEvent, TickEvent, UImessage, UIsender, utc_now,
+    stats::ExpoAvg,
+    sync::OffsetEstimator,
+    ticker::Ticker
+};
 
 
 /// Collection of GTK widgets that may need dynamic updates
@@ -35,23 +39,25 @@ struct Widgets {
 
 impl Widgets {
     pub fn new(root: &gtk::ApplicationWindow) -> Widgets {
-        let vbox = gtk::Box::new(gtk::Orientation::Vertical, 4);
+        let vbox = gtk::Box::new(gtk::Orientation::Vertical, 3);
         root.add(&vbox);
 
-        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-        vbox.pack_start(&hbox, false, false, 2);
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 2);
+        vbox.pack_start(&hbox, false, false, 0);
 
         let hms_label = gtk::Label::new(None);
-        hbox.pack_start(&hms_label, false, false, 3);
+        hms_label.set_halign(gtk::Align::Center);
+        hbox.pack_start(&hms_label, false, false, 2);
 
         let phase_label = gtk::Label::new(None);
-        hbox.pack_start(&phase_label, false, false, 3);
+        phase_label.set_halign(gtk::Align::End);
+        hbox.pack_start(&phase_label, false, false, 6);
 
-        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-        vbox.pack_start(&hbox, false, false, 2);
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 2);
+        vbox.pack_start(&hbox, false, false, 0);
 
         let latency_label = gtk::Label::new(None);
-        hbox.pack_start(&latency_label, false, false, 2);
+        hbox.pack_start(&latency_label, false, false, 0);
 
         Widgets {
             hms_label,
@@ -67,9 +73,11 @@ impl Widgets {
             glib::MainContext::channel(glib::PRIORITY_HIGH);
         let w = self.clone();
 
+        // Wire-up message handlers:
         receiver.attach(None, move |msg| {
             match msg {
-                UImessage::Tick(event) => w.receive_tick(event)
+                UImessage::Tick(event) =>   w.receive_tick(event),
+                UImessage::Offset(event) => w.receive_offset(event)
             };
             glib::Continue(true)
         });
@@ -101,6 +109,11 @@ impl Widgets {
             self.latency_label.set_text(&latency_txt);
         }
     }
+
+    pub fn receive_offset(&self, _event: OffsetEvent) {
+        // FIXME - display clock-offset statistics on UI
+        //println!("OffsetEvent @ {}", utc_now())
+    }
 }
 
 
@@ -115,8 +128,10 @@ fn on_activate(app: &gtk::Application) {
     let widgets = Widgets::new(&win);
     let sender = widgets.init_channel();
 
-    let ticker = Ticker::new(&sender);
+    let ticker = Ticker::new(sender.clone());
+    let offest = OffsetEstimator::new(ticker.get_sync(), sender.clone());
     thread::spawn(move || { ticker.run() });
+    thread::spawn(move || { offest.run() });
 
     win.show_all();
 }
