@@ -102,7 +102,7 @@ impl Widgets {
         let avg_latency = self.avg_latency.borrow_mut()
                                           .add_duration(latency);
         // FIXME - screen-update latency is likely to be sub-millisecond, but might be worth including in ticker offset
-        if phase == 0 {
+        if phase == 2 {
             let latency_txt = format!("UI latency: {:.2}ms",
                     avg_latency.num_microseconds()
                                .expect("UI latency should be finite") as f64 / 1e3);
@@ -129,7 +129,7 @@ fn on_activate(app: &gtk::Application) {
     let sender = widgets.init_channel();
 
     let ticker = Ticker::new(sender.clone());
-    let offest = OffsetEstimator::new(ticker.get_sync(), sender.clone());
+    let mut offest = OffsetEstimator::new(ticker.get_sync(), sender.clone());
     thread::spawn(move || { ticker.run() });
     thread::spawn(move || { offest.run() });
 

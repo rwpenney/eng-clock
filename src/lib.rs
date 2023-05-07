@@ -24,9 +24,13 @@ pub mod sync;
 pub mod stats;
 pub mod ticker;
 
+#[cfg(test)]
+mod testing;
+
 use gtk::glib;
 
 pub type Timestamp = chrono::DateTime<chrono::Utc>;
+pub type LocalTimestamp = chrono::DateTime<chrono::Local>;
 pub type UIsender = glib::Sender<UImessage>;
 pub type Ticker = ticker::Ticker;
 
@@ -65,7 +69,15 @@ pub fn utc_now() -> Timestamp {
     chrono::Utc::now()
 }
 
-#[cfg(test)]
-mod testing;
+
+fn weak_rand() -> u32 {
+    use std::time::SystemTime;
+
+    let dt = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+                              .expect("Failed to compute unix timestamp");
+
+    (dt.as_nanos() % 4294967291) as u32
+}
+
 
 // (C)Copyright 2023, RW Penney
