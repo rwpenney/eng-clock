@@ -33,17 +33,18 @@ struct Widgets {
     hms_label: gtk::Label,
     phase_label: gtk::Label,
     latency_label: gtk::Label,
+    avg_offs_label: gtk::Label,
 
     avg_latency: Rc<RefCell<ExpoAvg>>
 }
 
 impl Widgets {
     pub fn new(root: &gtk::ApplicationWindow) -> Widgets {
-        let vbox = gtk::Box::new(gtk::Orientation::Vertical, 3);
-        root.add(&vbox);
+        let rtbox = gtk::Box::new(gtk::Orientation::Vertical, 3);
+        root.add(&rtbox);
 
         let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 2);
-        vbox.pack_start(&hbox, false, false, 0);
+        rtbox.pack_start(&hbox, false, false, 0);
 
         let hms_label = gtk::Label::new(None);
         hms_label.set_halign(gtk::Align::Center);
@@ -53,15 +54,19 @@ impl Widgets {
         phase_label.set_halign(gtk::Align::End);
         hbox.pack_start(&phase_label, false, false, 6);
 
-        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 2);
-        vbox.pack_start(&hbox, false, false, 0);
+        let vbox = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        rtbox.pack_start(&vbox, false, false, 0);
+
+        let avg_offs_label = gtk::Label::new(None);
+        vbox.pack_start(&avg_offs_label, false, false, 0);
 
         let latency_label = gtk::Label::new(None);
-        hbox.pack_start(&latency_label, false, false, 0);
+        vbox.pack_start(&latency_label, false, false, 0);
 
         Widgets {
             hms_label,
             phase_label,
+            avg_offs_label,
             latency_label,
             avg_latency: Rc::new(RefCell::new(ExpoAvg::new(0.1)))
         }
@@ -105,14 +110,17 @@ impl Widgets {
         if phase == 2 {
             let latency_txt = format!("UI latency: {:.2}ms",
                     avg_latency.num_microseconds()
-                               .expect("UI latency should be finite") as f64 / 1e3);
+                               .expect("UI latency should be finite") as f64 * 1e-3);
             self.latency_label.set_text(&latency_txt);
         }
     }
 
-    pub fn receive_offset(&self, _event: OffsetEvent) {
-        // FIXME - display clock-offset statistics on UI
-        //println!("OffsetEvent @ {}", utc_now())
+    pub fn receive_offset(&self, event: OffsetEvent) {
+        let offs_txt = format!("Offset: {:.1}ms ± {:.1}ms",
+                               event.avg_offset.num_microseconds()
+                                    .expect("Offset should be finit") as f64 * 1e-3,
+                               event.stddev_offset * 1e3);
+        self.avg_offs_label.set_text(&offs_txt);
     }
 }
 
@@ -128,7 +136,7 @@ fn on_activate(app: &gtk::Application) {
     let widgets = Widgets::new(&win);
     let sender = widgets.init_channel();
 
-    let ticker = Ticker::new(sender.clone());
+    let mut ticker = Ticker::new(sender.clone());
     let mut offest = OffsetEstimator::new(ticker.get_sync(), sender.clone());
     thread::spawn(move || { ticker.run() });
     thread::spawn(move || { offest.run() });

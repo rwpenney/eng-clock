@@ -3,7 +3,7 @@
  *  RW Penney, May 2023
  */
 
-use sntpc::{ NtpContext, NtpTimestampGenerator, NtpUdpSocket };
+use sntpc::{ NtpContext, NtpResult, NtpTimestampGenerator, NtpUdpSocket };
 use std::{
     net::{ SocketAddr, ToSocketAddrs, UdpSocket },
     rc::Rc,
@@ -65,21 +65,10 @@ impl NtpUdpSocket for UdpSocketWrapper {
 }
 
 
-#[derive(Debug)]
-struct NtpServer(String);
-
-impl ToSocketAddrs for NtpServer {
-    type Iter = std::vec::IntoIter<SocketAddr>;
-
-    fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
-        ToSocketAddrs::to_socket_addrs(&(&*self.0, 123u16))
-    }
-}
-
 pub struct OffsetEstimator {
     tkr_channel: mpsc::Sender<OffsetEvent>,
     ui_channel: UIsender,
-    ntp_servers: Vec<NtpServer>
+    ntp_servers: Vec<String>
 }
 
 impl OffsetEstimator {
@@ -88,8 +77,8 @@ impl OffsetEstimator {
         OffsetEstimator {
             tkr_channel,
             ui_channel,
-            ntp_servers: NTP_SERVERS.into_iter().map(|h|
-                                NtpServer(String::from(h))).collect()
+            ntp_servers: NTP_SERVERS.into_iter()
+                                    .map(|h| String::from(h)).collect()
         }
     }
 
@@ -103,24 +92,44 @@ impl OffsetEstimator {
         let ntp_ctxt = NtpContext::new(StdTimestampGen::default());
 
         loop {
-            self.ntp_ping(wrapped_skt.clone(), ntp_ctxt.clone());
+            if let Ok(sync) = self.try_ntp_pings(&wrapped_skt, &ntp_ctxt, 3) {
+                println!("{:?}", sync);
+                // ping.offset should be *added* to local clock to approximate reference time
+                // FIXME - accumulate robust statistics on clock offset & share with UI & Ticker
+                let offs = OffsetEvent {
+                    avg_offset: chrono::Duration::microseconds(sync.offset),
+                    stddev_offset: 30.0 };
+
+                self.tkr_channel.send(offs).unwrap();
+                self.ui_channel.send(UImessage::Offset(offs)).unwrap();
+            }
+
             thread::sleep(std::time::Duration::from_secs_f64(17.0));
-            let offs = OffsetEvent {};
-            self.tkr_channel.send(offs).unwrap();
-            self.ui_channel.send(UImessage::Offset(offs)).unwrap();
         }
     }
 
-    fn ntp_ping<T>(&mut self, skt: UdpSocketWrapper, ctxt: NtpContext<T>)
+    fn try_ntp_pings<T>(&self, skt: &UdpSocketWrapper, ctxt: &NtpContext<T>,
+                        attempts: u8) -> sntpc::Result<NtpResult>
+            where T: NtpTimestampGenerator + Copy {
+        let mut err = None;
+
+        for _ in 0 .. attempts {
+            match self.ntp_ping(skt.clone(), ctxt.clone()) {
+                Ok(ping) => return Ok(ping),
+                Err(e) =>   if err.is_none() {
+                                err = Some(Err(e)) }
+            }
+        }
+
+        err.unwrap().expect("Missing failure")
+    }
+
+    fn ntp_ping<T>(&self, skt: UdpSocketWrapper,
+                   ctxt: NtpContext<T>) -> sntpc::Result<NtpResult>
             where T: NtpTimestampGenerator + Copy {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
         let host = &self.ntp_servers[weak_rand() as usize % self.ntp_servers.len()];
-        println!("{:?}", host);
-
-        let ping = sntpc::get_time(host, skt, ctxt);
-        println!("{:?}", ping);
-
-        // FIXME - accumulate robust statistics on clock offset & share with UI & Ticker
+        sntpc::get_time((host.as_str(), 123u16), skt, ctxt)
     }
 }
 

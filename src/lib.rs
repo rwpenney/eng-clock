@@ -51,7 +51,11 @@ pub struct TickEvent {
 /// Clock-offset update event
 #[derive(Clone, Copy, Debug)]
 pub struct OffsetEvent {
-    // FIXME - much more here
+    /// The latest best-fit correction to be added to the local clock
+    pub avg_offset: chrono::Duration,
+
+    /// The nominal error on the clock-offset, in seconds
+    pub stddev_offset: f32,
 }
 
 

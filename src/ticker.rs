@@ -10,6 +10,7 @@ use crate::{ OffsetEvent, TickEvent, Timestamp, UImessage, UIsender, utc_now };
 
 
 pub struct Ticker {
+    avg_offset: chrono::Duration,
     ui_channel: UIsender,
     sync_sender: mpsc::Sender<OffsetEvent>,
     sync_receiver: mpsc::Receiver<OffsetEvent>
@@ -23,6 +24,7 @@ impl Ticker {
         let (sync_sender, sync_receiver) = mpsc::channel();
 
         Ticker {
+            avg_offset: chrono::Duration::minutes(0),
             ui_channel,
             sync_sender,
             sync_receiver
@@ -34,7 +36,8 @@ impl Ticker {
     }
 
     /// Entry-point for tick-generating thread communicating via GLIB messages
-    pub fn run(&self) {
+    pub fn run(&mut self) {
+
         loop {
             let (t_nominal, tick_id) = self.wait_next();
             let t_transmit = utc_now();
@@ -43,9 +46,9 @@ impl Ticker {
                 UImessage::Tick(TickEvent { t_nominal, t_transmit, tick_id })
             ).unwrap();
 
-            while let Ok(_offs) = self.sync_receiver.try_recv() {
-                //println!("Ticker received {:?} @ {}", offs, utc_now());
-                // FIXME - handle clock-offset update
+            while let Ok(sync) = self.sync_receiver.try_recv() {
+                //println!("Ticker received {:?} @ {}", sync, utc_now());
+                self.avg_offset = sync.avg_offset;
             }
         }
     }
@@ -53,7 +56,7 @@ impl Ticker {
     /// Compute nominal time of next clock update, and sleep until it ready for GUI update
     #[inline]
     fn wait_next(&self) -> (Timestamp, i64) {
-        let (t_next_nominal, tick_id, wait) = Ticker::predict_next(utc_now());
+        let (t_next_nominal, tick_id, wait) = self.predict_next(utc_now());
 
         thread::sleep(wait);
 
@@ -61,15 +64,14 @@ impl Ticker {
     }
 
     #[inline]
-    fn predict_next(now: Timestamp) -> (Timestamp, i64, std::time::Duration) {
-        let now_us = now.timestamp_micros();
+    fn predict_next(&self, now: Timestamp) -> (Timestamp, i64, std::time::Duration) {
+        let now_us = (now + self.avg_offset).timestamp_micros();
         let tick_id = (now_us + Ticker::PERIOD_US + Ticker::PERIOD_US / 4)
                             / Ticker::PERIOD_US;
         let step_us = (tick_id * Ticker::PERIOD_US) - now_us;
         let t_next_nominal = Timestamp::from_utc(
             NaiveDateTime::from_timestamp_micros(tick_id * Ticker::PERIOD_US)
                 .unwrap(), Utc);
-        // FIXME - apply clock-offset and UI-latency corrections
 
         ( t_next_nominal,
           tick_id,
