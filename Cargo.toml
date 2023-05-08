@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.24"
-ntp = "0.5"
 gtk = "0.15"
+sntpc = "0.3"

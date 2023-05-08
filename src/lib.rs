@@ -30,7 +30,6 @@ mod testing;
 use gtk::glib;
 
 pub type Timestamp = chrono::DateTime<chrono::Utc>;
-pub type LocalTimestamp = chrono::DateTime<chrono::Local>;
 pub type UIsender = glib::Sender<UImessage>;
 pub type Ticker = ticker::Ticker;
 
