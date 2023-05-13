@@ -6,10 +6,11 @@ from one second to the next. (Note that some desktop clock applications may
 simply provide updates every second, but at an arbitrary offset from
 these second boundaries.)
 
-The application currently assumes that the system clock is itself well
-synchonized to an external time reference (e.g. via NTP or GPS),
-but may eventually have functionality that will compute a statistical
-estimate of this local clock offset.
+The application sends its own NTP requests to feed into a statistical estimator
+of the local system clock's offset from authoritative time references,
+including an estimate of the accumulated margin of error.
+(That offset estimator is based on a simple Bayesian Inference process
+assuming Gaussian statistics.)
 
 The visual display is deliberately minimalistic, using only basic GTK elements.
 

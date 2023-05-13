@@ -53,6 +53,56 @@ impl ExpoAvg {
 }
 
 
+/// Recursive Bayesian estimator of clock-offset,
+/// assuming Gaussian prior and measurement error
+pub struct BayesOffset {
+    /// The posterior mean clock-offset, in seconds
+    mean: f32,
+
+    /// The variance of the posterior distribution, in square-seconds
+    variance: f32
+}
+
+impl BayesOffset {
+    /// The minimum credible uncertainty in a clock-offset measurement (in seconds)
+    const MIN_PRECISION: f32 = 1e-6;
+
+    pub fn new(dt0: f32) -> BayesOffset {
+        BayesOffset {
+            mean: 0.0,
+            variance: BayesOffset::clamp_variance(dt0)
+        }
+    }
+
+    pub fn add_observation(&mut self, offset: f32, precision: f32) {
+        let var_obs = BayesOffset::clamp_variance(precision);
+        let var_rat = self.variance / var_obs;
+
+        self.mean = self.mean / (1.0 + var_rat) +
+                    offset / (1.0 + 1.0 / var_rat);
+        self.variance /= 1.0 + var_rat;
+
+        // FIXME - the variance asymptotes to zero, which is implausible
+    }
+
+    pub fn avg_offset(&self) -> chrono::Duration {
+        chrono::Duration::microseconds((self.mean * 1e6) as i64)
+    }
+
+    pub fn stddev_offset(&self) -> f32 {
+        self.variance.sqrt()
+    }
+
+    fn clamp_variance(dt: f32) -> f32 {
+        if dt > BayesOffset::MIN_PRECISION {
+            dt * dt
+        } else {
+            BayesOffset::MIN_PRECISION * BayesOffset::MIN_PRECISION
+        }
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use chrono::Duration;
@@ -109,6 +159,8 @@ mod tests {
 
         assert_close(filter.query().unwrap(), 67e3, 1e-12);
     }
+
+    // FIXME - add tests for BayesOffset
 }
 
 // (C)Copyright 2023, RW Penney

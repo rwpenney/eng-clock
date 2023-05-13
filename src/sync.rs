@@ -9,7 +9,9 @@ use std::{
     rc::Rc,
     sync::mpsc,
     thread };
-use crate::{ OffsetEvent, Timestamp, UImessage, UIsender, utc_now, weak_rand };
+use crate::{
+    OffsetEvent, Timestamp, UImessage, UIsender, utc_now, weak_rand,
+    stats::BayesOffset };
 
 
 const NTP_SERVERS: [&str; 8] = [
@@ -21,6 +23,7 @@ const NTP_SERVERS: [&str; 8] = [
     "1.asia.pool.ntp.org",
     "2.north-america.pool.ntp.org",
     "3.debian.pool.ntp.org"
+    // FIXME - make NTP servers configurable
 ];
 
 
@@ -68,7 +71,8 @@ impl NtpUdpSocket for UdpSocketWrapper {
 pub struct OffsetEstimator {
     tkr_channel: mpsc::Sender<OffsetEvent>,
     ui_channel: UIsender,
-    ntp_servers: Vec<String>
+    ntp_servers: Vec<String>,
+    stats: BayesOffset
 }
 
 impl OffsetEstimator {
@@ -78,7 +82,8 @@ impl OffsetEstimator {
             tkr_channel,
             ui_channel,
             ntp_servers: NTP_SERVERS.into_iter()
-                                    .map(|h| String::from(h)).collect()
+                                    .map(|h| String::from(h)).collect(),
+            stats: BayesOffset::new(30.0)
         }
     }
 
@@ -95,10 +100,15 @@ impl OffsetEstimator {
             if let Ok(sync) = self.try_ntp_pings(&wrapped_skt, &ntp_ctxt, 3) {
                 println!("{:?}", sync);
                 // ping.offset should be *added* to local clock to approximate reference time
-                // FIXME - accumulate robust statistics on clock offset & share with UI & Ticker
+
+                self.stats.add_observation(sync.offset as f32 * 1e-6,
+                                           sync.roundtrip as f32 * 0.25e-6);
+                // Heuristically assume that the offset margin of error
+                // is about a quarter of the round-trip time
+
                 let offs = OffsetEvent {
-                    avg_offset: chrono::Duration::microseconds(sync.offset),
-                    stddev_offset: 30.0 };
+                    avg_offset: self.stats.avg_offset(),
+                    stddev_offset: self.stats.stddev_offset() };
 
                 self.tkr_channel.send(offs).unwrap();
                 self.ui_channel.send(UImessage::Offset(offs)).unwrap();

@@ -56,7 +56,8 @@ impl Ticker {
     /// Compute nominal time of next clock update, and sleep until it ready for GUI update
     #[inline]
     fn wait_next(&self) -> (Timestamp, i64) {
-        let (t_next_nominal, tick_id, wait) = self.predict_next(utc_now());
+        let (t_next_nominal, tick_id, wait) =
+            Ticker::predict_next(utc_now(), self.avg_offset);
 
         thread::sleep(wait);
 
@@ -64,8 +65,9 @@ impl Ticker {
     }
 
     #[inline]
-    fn predict_next(&self, now: Timestamp) -> (Timestamp, i64, std::time::Duration) {
-        let now_us = (now + self.avg_offset).timestamp_micros();
+    fn predict_next(now: Timestamp, avg_offset: chrono::Duration)
+            -> (Timestamp, i64, std::time::Duration) {
+        let now_us = (now + avg_offset).timestamp_micros();
         let tick_id = (now_us + Ticker::PERIOD_US + Ticker::PERIOD_US / 4)
                             / Ticker::PERIOD_US;
         let step_us = (tick_id * Ticker::PERIOD_US) - now_us;
@@ -86,9 +88,10 @@ mod tests {
     use crate::testing::*;
 
     #[test]
-    fn prediction() {
+    fn base_prediction() {
         fn next(s: i32, f: (i32, i32, i32)) -> (Timestamp, i64, u32) {
-            let (t_nom, tick, wait) = Ticker::predict_next(mk_time(s, f));
+            let (t_nom, tick, wait) =
+                Ticker::predict_next(mk_time(s, f), chrono::Duration::zero());
             ( t_nom, tick % 40, wait.as_micros() as u32 )
         }
 
@@ -99,6 +102,8 @@ mod tests {
         assert_eq!(next(977, (739, 743, 751)),
                    ( mk_time(978, (0, 0, 0)), 32, 260_257 ));
     }
+
+    // FIXME - add test for predict_next with offset
 }
 
 // (C)Copyright 2023, RW Penney
