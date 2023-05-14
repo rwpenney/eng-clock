@@ -4,13 +4,20 @@
  */
 
 use chrono;
+use crate::Timestamp;
 
 
 /// Exponentially smoothed moving average filter
 #[derive(Clone, Copy)]
 pub struct ExpoAvg {
+    /// The weight given to each new sample (typically close to zero,
+    /// such that the averaging timescale is roughly 1/eps)
     eps: f64,
+
+    /// An unscaled rolling-average of the input samples
     numerator: f64,
+
+    /// The normalizing function applied to the unscaled rolling average
     denominator: f64
 }
 
@@ -60,37 +67,63 @@ pub struct BayesOffset {
     mean: f32,
 
     /// The variance of the posterior distribution, in square-seconds
-    variance: f32
+    variance: f32,
+
+    /// The (uncorrected) time at which an observation was last provided
+    last_obs_time: Option<Timestamp>,
+
+    /// The diffusive growth rate of the offset uncertainty,
+    /// in seconds per square-root minutes
+    diffusivity: f32
 }
 
 impl BayesOffset {
     /// The minimum credible uncertainty in a clock-offset measurement (in seconds)
     const MIN_PRECISION: f32 = 1e-6;
 
+    /// Create a new offset-estimator with zero bias and given standard-deviation
     pub fn new(dt0: f32) -> BayesOffset {
         BayesOffset {
             mean: 0.0,
-            variance: BayesOffset::clamp_variance(dt0)
+            variance: BayesOffset::clamp_variance(dt0),
+            last_obs_time: None,
+            diffusivity: 0.005
         }
     }
 
-    pub fn add_observation(&mut self, offset: f32, precision: f32) {
+    /// Supply a new measurement of the clock offset
+    pub fn add_observation(&mut self, offset: f32, precision: f32,
+                           obs_time: Timestamp) {
         let var_obs = BayesOffset::clamp_variance(precision);
-        let var_rat = self.variance / var_obs;
+        let inst_var = self.diffused_variance(obs_time);
+        let var_rat = inst_var / var_obs;
 
         self.mean = self.mean / (1.0 + var_rat) +
                     offset / (1.0 + 1.0 / var_rat);
-        self.variance /= 1.0 + var_rat;
-
-        // FIXME - the variance asymptotes to zero, which is implausible
+        self.variance = inst_var / (1.0 + var_rat);
+        self.last_obs_time = Some(obs_time);
     }
 
+    /// Maximum-likelihood estimator of the clock offset
     pub fn avg_offset(&self) -> chrono::Duration {
         chrono::Duration::microseconds((self.mean * 1e6) as i64)
     }
 
-    pub fn stddev_offset(&self) -> f32 {
-        self.variance.sqrt()
+    /// Extrapolate the offset variance allowing for diffusive growth
+    /// since the previous observation
+    fn diffused_variance(&self, obs_time: Timestamp) -> f32 {
+        if let Some(t0) = self.last_obs_time {
+            let dt_mins = (obs_time - t0).num_milliseconds() as f32 / 60e3;
+            self.variance + self.diffusivity.powi(2) * dt_mins
+        } else {
+            self.variance
+        }
+    }
+
+    /// Current estimate of the margin of error in the clock offset,
+    /// allowing for growth since the time of the latest measurement
+    pub fn stddev_offset(&self, obs_time: Timestamp) -> f32 {
+        self.diffused_variance(obs_time).sqrt()
     }
 
     fn clamp_variance(dt: f32) -> f32 {

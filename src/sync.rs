@@ -101,14 +101,17 @@ impl OffsetEstimator {
                 println!("{:?}", sync);
                 // ping.offset should be *added* to local clock to approximate reference time
 
+                let obs_time = utc_now();
                 self.stats.add_observation(sync.offset as f32 * 1e-6,
-                                           sync.roundtrip as f32 * 0.25e-6);
+                                           sync.roundtrip as f32 * 0.25e-6 +
+                                            2.0f32.powi(sync.precision as i32),
+                                           obs_time);
                 // Heuristically assume that the offset margin of error
                 // is about a quarter of the round-trip time
 
                 let offs = OffsetEvent {
                     avg_offset: self.stats.avg_offset(),
-                    stddev_offset: self.stats.stddev_offset() };
+                    stddev_offset: self.stats.stddev_offset(obs_time) };
 
                 self.tkr_channel.send(offs).unwrap();
                 self.ui_channel.send(UImessage::Offset(offs)).unwrap();
