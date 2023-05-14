@@ -1,0 +1,12 @@
+#!/bin/bash
+# Skew system clock for Eng-Clock testing
+
+echo "System clock to be adjusted - press ctrl-C to abort..."
+sleep 5
+
+systemctl stop systemd-timesyncd
+
+adjtime=$(date +"%Y-%m-%d %H:%M:%S.%N" -d "now - 2.75 seconds")
+date -s "${adjtime}"
+
+exit 0
