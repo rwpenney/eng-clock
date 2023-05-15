@@ -33,6 +33,8 @@ pub type Timestamp = chrono::DateTime<chrono::Utc>;
 pub type UIsender = glib::Sender<UImessage>;
 pub type Ticker = ticker::Ticker;
 
+pub const MILLIS_PER_DAY: f32 = 86400e3;
+
 
 /// Clock-ticking event
 #[derive(Clone, Copy)]
@@ -73,14 +75,45 @@ pub fn utc_now() -> Timestamp {
 }
 
 
+/// Crude method for generating pseudo-random numbers
 fn weak_rand() -> u32 {
     use std::time::SystemTime;
+
+    static mut COUNTER: u128 = 0x4564a54753fa4c49;
 
     let dt = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                               .expect("Failed to compute unix timestamp");
 
-    (dt.as_nanos() % 4294967291) as u32
+    unsafe {
+        COUNTER = (COUNTER * 0x5deece66d + 11) & ((1 << 48) - 1);
+        ((dt.as_nanos() * 0x56cae88f ^ COUNTER) % 4294967291) as u32
+    }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::weak_rand;
+    use crate::testing::*;
+
+    #[test]
+    fn rand_dist() {
+        const N: i32 = 5000;
+
+        for modulus in [997, 10891, 1201201] {
+            let samples: Vec<f64> =
+                (0 .. N).map(|_| (weak_rand() % modulus) as f64
+                                    / (modulus as f64)).collect();
+            println!("{:?}", samples);
+
+            let mean = samples.iter().sum::<f64>() / (N as f64);
+            let vrnc = samples.iter().map(|x| x * x).sum::<f64>() / (N as f64)
+                            - mean * mean;
+
+            assert_close(mean, 0.5, 1.0 / (N as f64).sqrt());
+            assert_close(vrnc, 1.0 / 12.0, 0.2 / (N as f64).sqrt());
+        }
+    }
+}
 
 // (C)Copyright 2023, RW Penney

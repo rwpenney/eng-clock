@@ -73,7 +73,7 @@ pub struct BayesOffset {
     last_obs_time: Option<Timestamp>,
 
     /// The diffusive growth rate of the offset uncertainty,
-    /// in seconds per square-root minutes
+    /// in seconds per square-root day
     diffusivity: f32
 }
 
@@ -87,7 +87,7 @@ impl BayesOffset {
             mean: 0.0,
             variance: BayesOffset::clamp_variance(dt0),
             last_obs_time: None,
-            diffusivity: 0.005
+            diffusivity: 0.5
         }
     }
 
@@ -113,8 +113,9 @@ impl BayesOffset {
     /// since the previous observation
     fn diffused_variance(&self, obs_time: Timestamp) -> f32 {
         if let Some(t0) = self.last_obs_time {
-            let dt_mins = (obs_time - t0).num_milliseconds() as f32 / 60e3;
-            self.variance + self.diffusivity.powi(2) * dt_mins
+            let dt_days = (obs_time - t0).num_milliseconds() as f32
+                                / crate::MILLIS_PER_DAY;
+            self.variance + self.diffusivity.powi(2) * dt_days
         } else {
             self.variance
         }
@@ -139,7 +140,8 @@ impl BayesOffset {
 #[cfg(test)]
 mod tests {
     use chrono::Duration;
-    use super::ExpoAvg;
+    use super::{ BayesOffset, ExpoAvg };
+    use crate::utc_now;
     use crate::testing::*;
 
     #[test]
@@ -193,7 +195,46 @@ mod tests {
         assert_close(filter.query().unwrap(), 67e3, 1e-12);
     }
 
-    // FIXME - add tests for BayesOffset
+    #[test]
+    fn bo_init() {
+        let bo0 = BayesOffset::new(1.5);
+
+        assert_eq!(bo0.mean, 0.0);
+        assert_eq!(bo0.variance, 2.25);
+        assert_eq!(bo0.last_obs_time, None);
+        assert!(bo0.diffusivity > 1e-2 && bo0.diffusivity < 10.0);
+
+        assert_eq!(BayesOffset::new(0.0).variance,
+                   BayesOffset::MIN_PRECISION.powi(2));
+    }
+
+    #[test]
+    fn bo_mean_units() {
+        let mut bo = BayesOffset::new(0.0);
+
+        bo.mean = 1.0;
+        assert_eq!(bo.avg_offset(), chrono::Duration::seconds(1));
+
+        bo.mean = 0.125;
+        assert_eq!(bo.avg_offset(), chrono::Duration::milliseconds(125));
+    }
+
+    #[test]
+    fn bo_variances() {
+        let mut bo = BayesOffset::new(2.5);
+        bo.diffusivity = 3.0;
+
+        assert_eq!(bo.stddev_offset(utc_now()), 2.5);
+        assert_eq!(bo.diffused_variance(utc_now()), 6.25);
+
+        bo.last_obs_time = Some(mk_time(0, (0, 0, 0)));
+        let t1 = mk_time(86400, (0, 0, 0));
+
+        assert_close(bo.diffused_variance(t1) as f64, 6.25 + 9.0, 1e-9);
+        assert_close(bo.stddev_offset(t1) as f64, (15.25f64).sqrt(), 1e-7);
+    }
+
+    // FIXME - add more tests for BayesOffset
 }
 
 // (C)Copyright 2023, RW Penney
