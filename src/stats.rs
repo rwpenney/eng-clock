@@ -234,7 +234,40 @@ mod tests {
         assert_close(bo.stddev_offset(t1) as f64, (15.25f64).sqrt(), 1e-7);
     }
 
-    // FIXME - add more tests for BayesOffset
+    #[test]
+    fn bo_simple_update() {
+        const PRECISION: f32 = 1.7e-2;
+        let mut bo = BayesOffset::new(PRECISION);
+        let t = utc_now();
+
+        bo.mean = 2.0;
+        bo.add_observation(3.0, PRECISION, t);
+
+        assert_close(bo.mean as f64, 2.5, 1e-9);
+        assert_close(bo.variance as f64,
+                     0.5 * PRECISION.powi(2) as f64, 1e-8);
+        assert_eq!(bo.last_obs_time, Some(t));
+    }
+
+    #[test]
+    fn bo_update() {
+        let p0: f32 = 1.7e-2;
+        let t0 = mk_time(0, (0, 0, 0));
+        let t1 = t0 + chrono::Duration::days(4);
+
+        let mut bo = BayesOffset::new(p0);
+        bo.mean = 1.9;
+        bo.diffusivity = 0.5 * p0;
+        bo.last_obs_time = Some(t0);
+
+        bo.add_observation(2.7, p0 * 3.0, t1);
+
+        assert_close(bo.mean as f64,
+                     1.9 / (1.0 + 2.0 / 9.0) + 2.7 / (1.0 + 9.0 / 2.0), 1e-6);
+        assert_close(bo.variance as f64,
+                     2.0 * p0.powi(2) as f64 / (1.0 + 2.0 / 9.0), 1e-8);
+        assert_eq!(bo.last_obs_time, Some(t1));
+    }
 }
 
 // (C)Copyright 2023, RW Penney

@@ -47,7 +47,6 @@ impl Ticker {
             ).unwrap();
 
             while let Ok(sync) = self.sync_receiver.try_recv() {
-                //println!("Ticker received {:?} @ {}", sync, utc_now());
                 self.avg_offset = sync.avg_offset;
             }
         }
@@ -103,7 +102,22 @@ mod tests {
                    ( mk_time(978, (0, 0, 0)), 32, 260_257 ));
     }
 
-    // FIXME - add test for predict_next with offset
+    #[test]
+    fn offset_prediction() {
+        fn next(s: i32, f: (i32, i32, i32), offs_ms: i32) -> (Timestamp, i64, u32) {
+            let (t_nom, tick, wait) =
+                Ticker::predict_next(mk_time(s, f),
+                                     chrono::Duration::milliseconds(offs_ms as i64));
+            ( t_nom, tick % 1000, wait.as_micros() as u32 )
+        }
+
+        assert_eq!(next(0, (0, 0, 0), 57),
+                   ( mk_time(0, (250, 0, 0)), 1, 193_000));
+        assert_eq!(next(23, (247, 34, 0), 4),
+                   ( mk_time(23, (500, 0, 0)), 94, 248_966));
+        assert_eq!(next(118, (127, 628, 0), 734),
+                   ( mk_time(119, (0, 0, 0)), 476, 138_372));
+    }
 }
 
 // (C)Copyright 2023, RW Penney

@@ -98,7 +98,6 @@ impl OffsetEstimator {
 
         loop {
             if let Ok(sync) = self.try_ntp_pings(&wrapped_skt, &ntp_ctxt, 3) {
-                println!("{:?}", sync);
                 // ping.offset should be *added* to local clock to approximate reference time
 
                 let obs_time = utc_now();
@@ -118,6 +117,7 @@ impl OffsetEstimator {
             }
 
             thread::sleep(std::time::Duration::from_secs_f64(17.0));
+            // FIXME - make NTP request rate configurable
         }
     }
 

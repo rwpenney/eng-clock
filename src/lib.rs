@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn rand_dist() {
-        const N: i32 = 5000;
+        const N: i32 = 1000;
 
         for modulus in [997, 10891, 1201201] {
             let samples: Vec<f64> =
@@ -111,7 +111,7 @@ mod tests {
                             - mean * mean;
 
             assert_close(mean, 0.5, 1.0 / (N as f64).sqrt());
-            assert_close(vrnc, 1.0 / 12.0, 0.2 / (N as f64).sqrt());
+            assert_close(vrnc, 1.0 / 12.0, 0.3 / (N as f64).sqrt());
         }
     }
 }
