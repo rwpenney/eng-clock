@@ -72,18 +72,20 @@ pub struct OffsetEstimator {
     tkr_channel: mpsc::Sender<OffsetEvent>,
     ui_channel: UIsender,
     ntp_servers: Vec<String>,
-    stats: BayesOffset
+    stats: BayesOffset,
+    target_precision: f32
 }
 
 impl OffsetEstimator {
-    pub fn new(tkr_channel: mpsc::Sender<OffsetEvent>,
-               ui_channel: UIsender) -> OffsetEstimator {
+    pub fn new(tkr_channel: mpsc::Sender<OffsetEvent>, ui_channel: UIsender,
+               target_precision: f32) -> OffsetEstimator {
         OffsetEstimator {
             tkr_channel,
             ui_channel,
             ntp_servers: NTP_SERVERS.into_iter()
                                     .map(|h| String::from(h)).collect(),
-            stats: BayesOffset::new(30.0)
+            stats: BayesOffset::new(30.0),
+            target_precision
         }
     }
 
@@ -97,27 +99,40 @@ impl OffsetEstimator {
         let ntp_ctxt = NtpContext::new(StdTimestampGen::default());
 
         loop {
-            if let Ok(sync) = self.try_ntp_pings(&wrapped_skt, &ntp_ctxt, 3) {
-                // ping.offset should be *added* to local clock to approximate reference time
+            let tick_time = self.check_precision(&wrapped_skt, &ntp_ctxt);
 
-                let obs_time = utc_now();
-                self.stats.add_observation(sync.offset as f32 * 1e-6,
-                                           sync.roundtrip as f32 * 0.25e-6 +
-                                            2.0f32.powi(sync.precision as i32),
-                                           obs_time);
-                // Heuristically assume that the offset margin of error
-                // is about a quarter of the round-trip time
+            let offs = OffsetEvent {
+                avg_offset: self.stats.avg_offset(),
+                stddev_offset: self.stats.stddev_offset(tick_time) };
 
-                let offs = OffsetEvent {
-                    avg_offset: self.stats.avg_offset(),
-                    stddev_offset: self.stats.stddev_offset(obs_time) };
+            self.tkr_channel.send(offs).unwrap();
+            self.ui_channel.send(UImessage::Offset(offs)).unwrap();
 
-                self.tkr_channel.send(offs).unwrap();
-                self.ui_channel.send(UImessage::Offset(offs)).unwrap();
-            }
+            thread::sleep(std::time::Duration::from_secs_f64(11.0));
+        }
+    }
 
-            thread::sleep(std::time::Duration::from_secs_f64(17.0));
-            // FIXME - make NTP request rate configurable
+    fn check_precision<T>(&mut self, skt: &UdpSocketWrapper,
+                          ctxt: &NtpContext<T>) -> Timestamp
+            where T: NtpTimestampGenerator + Copy {
+        let now = utc_now();
+
+        // Check if uncertainty in clock-offset is still acceptably small:
+        if self.stats.stddev_offset(now) < self.target_precision {
+            return now;
+        }
+
+        if let Ok(sync) = self.try_ntp_pings(skt, ctxt, 3) {
+            let obs_time = utc_now();
+            self.stats.add_observation(sync.offset as f32 * 1e-6,
+                                       sync.roundtrip as f32 * 0.25e-6 +
+                                        2.0f32.powi(sync.precision as i32),
+                                       obs_time);
+            // Heuristically assume that the offset margin of error
+            // is about a quarter of the round-trip time
+            obs_time
+        } else {
+            utc_now()
         }
     }
 
@@ -134,7 +149,7 @@ impl OffsetEstimator {
             }
         }
 
-        err.unwrap().expect("Missing failure")
+        err.expect("Missing failure")
     }
 
     fn ntp_ping<T>(&self, skt: UdpSocketWrapper,
@@ -143,6 +158,7 @@ impl OffsetEstimator {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
         let host = &self.ntp_servers[weak_rand() as usize % self.ntp_servers.len()];
         sntpc::get_time((host.as_str(), 123u16), skt, ctxt)
+        // ping.offset should be *added* to local clock to approximate reference time
     }
 }
 

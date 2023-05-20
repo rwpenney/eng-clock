@@ -132,12 +132,14 @@ fn on_activate(app: &gtk::Application) {
     win.set_border_width(8);
     win.set_position(gtk::WindowPosition::Center);
     win.set_default_size(144, 48);
+    win.set_resizable(false);
 
     let widgets = Widgets::new(&win);
     let sender = widgets.init_channel();
 
     let mut ticker = Ticker::new(sender.clone());
-    let mut offest = OffsetEstimator::new(ticker.get_sync(), sender.clone());
+    let mut offest = OffsetEstimator::new(ticker.get_sync(), sender.clone(), 0.015);
+            // FIXME - make target precision configurable
     thread::spawn(move || { ticker.run() });
     thread::spawn(move || { offest.run() });
 
