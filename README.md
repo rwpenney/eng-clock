@@ -6,6 +6,8 @@ screen updates to transitions from one second to the next.
 (Note that some desktop clock applications may simply provide updates
 every second, but at an arbitrary offset from these second boundaries.)
 
+![eng-clock screenshot](screenshot.png "eng-clock running on ArchLinux")
+
 The application sends its own NTP requests to feed into a statistical estimator
 of the local system clock's offset from authoritative time references,
 including an estimate of the accumulated margin of error.
