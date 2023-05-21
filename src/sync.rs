@@ -7,24 +7,12 @@ use sntpc::{ NtpContext, NtpResult, NtpTimestampGenerator, NtpUdpSocket };
 use std::{
     net::{ SocketAddr, ToSocketAddrs, UdpSocket },
     rc::Rc,
-    sync::mpsc,
+    sync::{ Arc, mpsc },
     thread };
 use crate::{
     OffsetEvent, Timestamp, UImessage, UIsender, utc_now, weak_rand,
+    config::ECConfig,
     stats::BayesOffset };
-
-
-const NTP_SERVERS: [&str; 8] = [
-    "0.uk.pool.ntp.org",
-    "2.uk.pool.ntp.org",
-    "1.europe.pool.ntp.org",
-    "3.europe.pool.ntp.org",
-    "ntp2d.mcc.ac.uk",
-    "1.asia.pool.ntp.org",
-    "2.north-america.pool.ntp.org",
-    "3.debian.pool.ntp.org"
-    // FIXME - make NTP servers configurable
-];
 
 
 #[derive(Clone, Copy, Default)]
@@ -71,21 +59,18 @@ impl NtpUdpSocket for UdpSocketWrapper {
 pub struct OffsetEstimator {
     tkr_channel: mpsc::Sender<OffsetEvent>,
     ui_channel: UIsender,
-    ntp_servers: Vec<String>,
     stats: BayesOffset,
-    target_precision: f32
+    config: Arc<ECConfig>
 }
 
 impl OffsetEstimator {
     pub fn new(tkr_channel: mpsc::Sender<OffsetEvent>, ui_channel: UIsender,
-               target_precision: f32) -> OffsetEstimator {
+               config: Arc<ECConfig>) -> OffsetEstimator {
         OffsetEstimator {
             tkr_channel,
             ui_channel,
-            ntp_servers: NTP_SERVERS.into_iter()
-                                    .map(|h| String::from(h)).collect(),
             stats: BayesOffset::new(30.0),
-            target_precision
+            config
         }
     }
 
@@ -118,7 +103,7 @@ impl OffsetEstimator {
         let now = utc_now();
 
         // Check if uncertainty in clock-offset is still acceptably small:
-        if self.stats.stddev_offset(now) < self.target_precision {
+        if self.stats.stddev_offset(now) < self.config.target_precision {
             return now;
         }
 
@@ -156,7 +141,8 @@ impl OffsetEstimator {
                    ctxt: NtpContext<T>) -> sntpc::Result<NtpResult>
             where T: NtpTimestampGenerator + Copy {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
-        let host = &self.ntp_servers[weak_rand() as usize % self.ntp_servers.len()];
+        let servers = &self.config.ntp_servers;
+        let host = &servers[weak_rand() as usize % servers.len()];
         sntpc::get_time((host.as_str(), 123u16), skt, ctxt)
         // ping.offset should be *added* to local clock to approximate reference time
     }

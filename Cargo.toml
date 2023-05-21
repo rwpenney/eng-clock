@@ -1,9 +1,12 @@
 [package]
 name = "eng-clock"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
 [dependencies]
 chrono = "0.4.24"
+dirs = "5.0"
 gtk = "0.15"
+serde = { version = "1.0", features = ["derive"] }
 sntpc = "0.3.4"
+toml = "0.4"
