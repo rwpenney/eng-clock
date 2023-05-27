@@ -47,10 +47,8 @@ pub struct SyncConfig {
 }
 
 impl SyncConfig {
-    const DEFAULT_TGT_PRECISION: f32 = 0.03;
-
     fn default_tgt_precision() -> f32 {
-        SyncConfig::DEFAULT_TGT_PRECISION
+        crate::sync::OffsetEstimator::DEFAULT_TGT_PRECISION
     }
 
     pub fn default() -> SyncConfig {
@@ -58,7 +56,7 @@ impl SyncConfig {
             ntp_servers:
                 DEFAULT_NTP_SERVERS.into_iter()
                                    .map(|h| String::from(h)).collect(),
-            target_precision: SyncConfig::DEFAULT_TGT_PRECISION
+            target_precision: SyncConfig::default_tgt_precision()
         }
     }
 }

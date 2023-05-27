@@ -10,9 +10,16 @@ use crate::{ OffsetEvent, TickEvent, Timestamp, UImessage, UIsender, utc_now };
 
 
 pub struct Ticker {
+    /// Latest estimate of clock offset
     avg_offset: chrono::Duration,
+
+    /// Outbound channel for user display
     ui_channel: UIsender,
+
+    /// Channel for peered synchronization sources to send updates
     sync_sender: mpsc::Sender<OffsetEvent>,
+
+    /// Inbound channel for synchronization updates
     sync_receiver: mpsc::Receiver<OffsetEvent>
 }
 

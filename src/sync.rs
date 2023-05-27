@@ -59,17 +59,30 @@ impl NtpUdpSocket for UdpSocketWrapper {
 pub struct OffsetEstimator {
     tkr_channel: mpsc::Sender<OffsetEvent>,
     ui_channel: UIsender,
+
+    /// Time between wakeups, in seconds
+    wakeup_interval: f32,
+
+    /// Bayesian statistical model of clock-offset
     stats: BayesOffset,
+
+    /// A collection of NTP server hostnames
     ntp_servers: Vec<String>,
+
+    /// The desired maximum uncertainty in the clock-offset, in seconds
     target_precision: f32
 }
 
 impl OffsetEstimator {
+    pub const DEFAULT_TGT_PRECISION: f32 = 0.03;
+    pub const DEFAULT_WAKEUP_ITVL: f32 = 11.0;
+
     pub fn new(tkr_channel: mpsc::Sender<OffsetEvent>, ui_channel: UIsender,
                config: &SyncConfig) -> OffsetEstimator {
         OffsetEstimator {
             tkr_channel,
             ui_channel,
+            wakeup_interval: OffsetEstimator::DEFAULT_WAKEUP_ITVL,
             stats: BayesOffset::new(30.0),
             ntp_servers: config.ntp_servers.clone(),
             target_precision: config.target_precision
@@ -95,7 +108,7 @@ impl OffsetEstimator {
             self.tkr_channel.send(offs).unwrap();
             self.ui_channel.send(UImessage::Offset(offs)).unwrap();
 
-            thread::sleep(std::time::Duration::from_secs_f64(11.0));
+            thread::sleep(std::time::Duration::from_secs_f32(self.wakeup_interval));
         }
     }
 

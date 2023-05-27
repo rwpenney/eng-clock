@@ -59,9 +59,11 @@ impl Widgets {
         rtbox.pack_start(&vbox, false, false, 0);
 
         let avg_offs_label = gtk::Label::new(None);
+        avg_offs_label.set_halign(gtk::Align::Start);
         vbox.pack_start(&avg_offs_label, false, false, 0);
 
         let latency_label = gtk::Label::new(None);
+        latency_label.set_halign(gtk::Align::Start);
         vbox.pack_start(&latency_label, false, false, 0);
 
         Widgets {
@@ -128,10 +130,7 @@ impl Widgets {
 
 fn read_config() -> ECConfig {
     match ECConfig::from_user_config() {
-        Ok(cfg) => {
-            println!("Ingested user-config: {:?}", cfg);
-            cfg
-        },
+        Ok(cfg) => cfg,
         Err(e) => {
             println!("Failed to read configuration file - {:?}", e);
             ECConfig::default()
