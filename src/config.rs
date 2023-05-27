@@ -37,30 +37,45 @@ const DEFAULT_NTP_SERVERS: [&str; 4] = [
 
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct ECConfig {
+pub struct SyncConfig {
     /// A collection of NTP hostnames
     pub ntp_servers: Vec<String>,
 
     /// The desired margin of error in the estimate clock-offset, in seconds
-    #[serde(default = "ECConfig::default_tgt_precision")]
+    #[serde(default = "SyncConfig::default_tgt_precision")]
     pub target_precision: f32
+}
+
+impl SyncConfig {
+    const DEFAULT_TGT_PRECISION: f32 = 0.03;
+
+    fn default_tgt_precision() -> f32 {
+        SyncConfig::DEFAULT_TGT_PRECISION
+    }
+
+    pub fn default() -> SyncConfig {
+        SyncConfig {
+            ntp_servers:
+                DEFAULT_NTP_SERVERS.into_iter()
+                                   .map(|h| String::from(h)).collect(),
+            target_precision: SyncConfig::DEFAULT_TGT_PRECISION
+        }
+    }
+}
+
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ECConfig {
+    pub sync: SyncConfig
 }
 
 impl ECConfig {
     const CFG_FILENAME: &str = "eng-clock.toml";
-    const DEFAULT_TGT_PRECISION: f32 = 0.03;
-
-    fn default_tgt_precision() -> f32 {
-        ECConfig::DEFAULT_TGT_PRECISION
-    }
 
     /// Create a configuration parameters from a built-in global list of NTP servers
     pub fn default() -> ECConfig {
         ECConfig {
-            ntp_servers:
-                DEFAULT_NTP_SERVERS.into_iter()
-                                   .map(|h| String::from(h)).collect(),
-            target_precision: ECConfig::DEFAULT_TGT_PRECISION
+            sync: SyncConfig::default()
         }
     }
 
@@ -69,11 +84,13 @@ impl ECConfig {
     /// # Example
     /// ```
     /// use eng_clock::config::ECConfig;
-    /// let cfg = ECConfig::from_toml(r#"ntp_servers = [
+    /// let cfg = ECConfig::from_toml(r#"
+    ///         [sync]
+    ///         ntp_servers = [
     ///         "1.africa.pool.ntp.org", "1.asia.pool.ntp.org",
     ///         "1.europe.pool.ntp.org", "1.north-america.pool.ntp.org",
     ///         "1.oceania.pool.ntp.org", "1.south-america.pool.ntp.org" ]"#).unwrap();
-    /// assert_eq!(cfg.ntp_servers.len(), 6);
+    /// assert_eq!(cfg.sync.ntp_servers.len(), 6);
     /// ```
     pub fn from_toml(s: &str) -> Result<ECConfig, ConfigReadError> {
         toml::from_str::<ECConfig>(s)

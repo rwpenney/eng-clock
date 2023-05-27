@@ -17,7 +17,7 @@
 
 use gtk::glib;
 use gtk::prelude::*;
-use std::{ cell::RefCell, rc::Rc, sync::Arc, thread };
+use std::{ cell::RefCell, rc::Rc, thread };
 
 use eng_clock::{
     OffsetEvent, TickEvent, UImessage, UIsender, utc_now,
@@ -142,7 +142,7 @@ fn read_config() -> ECConfig {
 
 /// Prepare GTK window and subcomponents, with clock ticking thread
 fn on_activate(app: &gtk::Application) {
-    let cfg = Arc::new(read_config());
+    let cfg = read_config();
     let win = gtk::ApplicationWindow::new(app);
     win.set_title("UTC Engineering Clock");
     win.set_border_width(8);
@@ -154,7 +154,8 @@ fn on_activate(app: &gtk::Application) {
     let sender = widgets.init_channel();
 
     let mut ticker = Ticker::new(sender.clone());
-    let mut offest = OffsetEstimator::new(ticker.get_sync(), sender.clone(), cfg);
+    let mut offest = OffsetEstimator::new(ticker.get_sync(),
+                                          sender.clone(), &cfg.sync);
     thread::spawn(move || { ticker.run() });
     thread::spawn(move || { offest.run() });
 

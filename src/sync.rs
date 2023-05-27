@@ -7,11 +7,11 @@ use sntpc::{ NtpContext, NtpResult, NtpTimestampGenerator, NtpUdpSocket };
 use std::{
     net::{ SocketAddr, ToSocketAddrs, UdpSocket },
     rc::Rc,
-    sync::{ Arc, mpsc },
+    sync::mpsc,
     thread };
 use crate::{
     OffsetEvent, Timestamp, UImessage, UIsender, utc_now, weak_rand,
-    config::ECConfig,
+    config::SyncConfig,
     stats::BayesOffset };
 
 
@@ -60,17 +60,19 @@ pub struct OffsetEstimator {
     tkr_channel: mpsc::Sender<OffsetEvent>,
     ui_channel: UIsender,
     stats: BayesOffset,
-    config: Arc<ECConfig>
+    ntp_servers: Vec<String>,
+    target_precision: f32
 }
 
 impl OffsetEstimator {
     pub fn new(tkr_channel: mpsc::Sender<OffsetEvent>, ui_channel: UIsender,
-               config: Arc<ECConfig>) -> OffsetEstimator {
+               config: &SyncConfig) -> OffsetEstimator {
         OffsetEstimator {
             tkr_channel,
             ui_channel,
             stats: BayesOffset::new(30.0),
-            config
+            ntp_servers: config.ntp_servers.clone(),
+            target_precision: config.target_precision
         }
     }
 
@@ -103,7 +105,7 @@ impl OffsetEstimator {
         let now = utc_now();
 
         // Check if uncertainty in clock-offset is still acceptably small:
-        if self.stats.stddev_offset(now) < self.config.target_precision {
+        if self.stats.stddev_offset(now) < self.target_precision {
             return now;
         }
 
@@ -141,7 +143,7 @@ impl OffsetEstimator {
                    ctxt: NtpContext<T>) -> sntpc::Result<NtpResult>
             where T: NtpTimestampGenerator + Copy {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
-        let servers = &self.config.ntp_servers;
+        let servers = &self.ntp_servers;
         let host = &servers[weak_rand() as usize % servers.len()];
         sntpc::get_time((host.as_str(), 123u16), skt, ctxt)
         // ping.offset should be *added* to local clock to approximate reference time

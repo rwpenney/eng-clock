@@ -33,6 +33,7 @@ based on [`pool.ntp.org`](https://www.ntppool.org).
 More region-specific servers can be configured by including
 an entry of the form:
 
+    [sync]
     ntp_servers = [
         "1.africa.pool.ntp.org",
         "1.asia.pool.ntp.org",
