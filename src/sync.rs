@@ -82,7 +82,7 @@ impl OffsetEstimator {
         OffsetEstimator {
             tkr_channel,
             ui_channel,
-            wakeup_interval: OffsetEstimator::DEFAULT_WAKEUP_ITVL,
+            wakeup_interval: config.wakeup_interval,
             stats: BayesOffset::new(30.0),
             ntp_servers: config.ntp_servers.clone(),
             target_precision: config.target_precision

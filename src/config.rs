@@ -43,7 +43,11 @@ pub struct SyncConfig {
 
     /// The desired margin of error in the estimate clock-offset, in seconds
     #[serde(default = "SyncConfig::default_tgt_precision")]
-    pub target_precision: f32
+    pub target_precision: f32,
+
+    /// The minimum time interval between NTP requests, in seconds
+    #[serde(default = "SyncConfig::default_wakeup_itvl")]
+    pub wakeup_interval: f32
 }
 
 impl SyncConfig {
@@ -51,12 +55,17 @@ impl SyncConfig {
         crate::sync::OffsetEstimator::DEFAULT_TGT_PRECISION
     }
 
+    fn default_wakeup_itvl() -> f32 {
+        crate::sync::OffsetEstimator::DEFAULT_WAKEUP_ITVL
+    }
+
     pub fn default() -> SyncConfig {
         SyncConfig {
             ntp_servers:
                 DEFAULT_NTP_SERVERS.into_iter()
                                    .map(|h| String::from(h)).collect(),
-            target_precision: SyncConfig::default_tgt_precision()
+            target_precision: SyncConfig::default_tgt_precision(),
+            wakeup_interval: SyncConfig::default_wakeup_itvl()
         }
     }
 }

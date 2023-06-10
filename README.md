@@ -22,11 +22,24 @@ The visual display is deliberately minimalistic, using only basic
 [GTK](https://gtk-rs.org/) elements.
 
 
+## Compilation
+
+`eng-clock` can be built using the standard
+[Cargo](https://doc.rust-lang.org/cargo/) recipe:
+
+    cargo build --release
+
+or for a smaller executable that uses platform-provided shared libraries:
+
+    RUSTFLAGS="-C prefer-dynamic" cargo build --release
+    strip target/release/eng-clock
+
+
 ## Configuration
 
 On startup the application will read configuration settings
 from `${HOME}/.config/eng-clock.toml` (or the equivalent directories
-provided by [dirs::config_dir()](https://docs.rs/dirs/5.0.1/dirs/fn.config_dir.html).
+provided by [dirs::config_dir()](https://docs.rs/dirs/5.0.1/dirs/fn.config_dir.html)).
 
 The application has a built-in set of default NTP servers,
 based on [`pool.ntp.org`](https://www.ntppool.org).
