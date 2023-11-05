@@ -1,5 +1,7 @@
 # UTC Engineering Clock
 
+![eng-clock logo](logo.svg)
+
 `eng-clock` is a simple Rust application that shows a live display
 of the current time, but taking particular care to accurately synchronize
 screen updates to transitions from one second to the next.

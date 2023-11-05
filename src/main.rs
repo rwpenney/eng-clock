@@ -165,7 +165,7 @@ fn on_activate(app: &gtk::Application) {
 fn main() {
     let app =
         gtk::Application::builder()
-            .application_id("uk.rwpenney.engclodk")
+            .application_id("uk.rwpenney.engclock")
             .build();
 
     app.connect_activate(on_activate);
