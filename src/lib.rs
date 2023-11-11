@@ -21,6 +21,7 @@
  */
 
 pub mod config;
+pub mod logo;
 pub mod sync;
 pub mod stats;
 pub mod ticker;

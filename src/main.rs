@@ -149,6 +149,9 @@ fn on_activate(app: &gtk::Application) {
     win.set_default_size(144, 48);
     win.set_resizable(false);
 
+    eng_clock::logo::get_pixbuf().map(|pixbuf|
+        win.set_icon(Some(&pixbuf)) ).unwrap();
+
     let widgets = Widgets::new(&win);
     let sender = widgets.init_channel();
 
