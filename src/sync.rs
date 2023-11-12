@@ -97,9 +97,14 @@ impl OffsetEstimator {
            .expect("Failed to set UDP timeout");
         let wrapped_skt = UdpSocketWrapper { skt: Rc::new(skt) };
         let ntp_ctxt = NtpContext::new(StdTimestampGen::default());
+        let mut tick_count: u32 = 0;
 
         loop {
-            let tick_time = self.check_precision(&wrapped_skt, &ntp_ctxt);
+            let warmup = tick_count < 3;
+
+            let tick_time = self.check_precision(&wrapped_skt, &ntp_ctxt,
+                                                 warmup);
+            tick_count += 1;
 
             let offs = OffsetEvent {
                 avg_offset: self.stats.avg_offset(),
@@ -108,17 +113,22 @@ impl OffsetEstimator {
             self.tkr_channel.send(offs).unwrap();
             self.ui_channel.send(UImessage::Offset(offs)).unwrap();
 
-            thread::sleep(std::time::Duration::from_secs_f32(self.wakeup_interval));
+            let pause = if !warmup {
+                std::time::Duration::from_secs_f32(self.wakeup_interval)
+            } else {
+                std::time::Duration::from_millis(500)
+            };
+            thread::sleep(pause);
         }
     }
 
     fn check_precision<T>(&mut self, skt: &UdpSocketWrapper,
-                          ctxt: &NtpContext<T>) -> Timestamp
+                          ctxt: &NtpContext<T>, force_ping: bool) -> Timestamp
             where T: NtpTimestampGenerator + Copy {
         let now = utc_now();
 
         // Check if uncertainty in clock-offset is still acceptably small:
-        if self.stats.stddev_offset(now) < self.target_precision {
+        if !force_ping && self.stats.stddev_offset(now) < self.target_precision {
             return now;
         }
 
@@ -126,7 +136,7 @@ impl OffsetEstimator {
             let obs_time = utc_now();
             self.stats.add_observation(sync.offset as f32 * 1e-6,
                                        sync.roundtrip as f32 * 0.25e-6 +
-                                        2.0f32.powi(sync.precision as i32),
+                                            2.0f32.powi(sync.precision as i32),
                                        obs_time);
             // Heuristically assume that the offset margin of error
             // is about a quarter of the round-trip time

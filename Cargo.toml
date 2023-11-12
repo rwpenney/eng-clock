@@ -1,6 +1,6 @@
 [package]
 name = "eng-clock"
-version = "0.3.1"
+version = "1.0.0"
 edition = "2021"
 
 [dependencies]
