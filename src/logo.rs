@@ -8,9 +8,11 @@ use gtk::gio::{ Cancellable, MemoryInputStream };
 use gtk::glib::Bytes;
 
 
-static LOGO_SVG: &[u8] = include_bytes!("../logo.svg");
+/// SVG logo image embedded at compile-time
+static LOGO_SVG: &[u8] = include_bytes!("../images/logo.svg");
 
 
+/// Extract embedded logo image as GDK pixbuf
 pub fn get_pixbuf() -> Result<Pixbuf, gtk::glib::error::Error> {
     let strm = MemoryInputStream::from_bytes(&Bytes::from_static(&LOGO_SVG));
     Pixbuf::from_stream(&strm, Cancellable::NONE)
