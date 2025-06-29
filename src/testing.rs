@@ -24,4 +24,4 @@ pub fn mk_time(seconds: i32, fracs: (i32, i32, i32)) -> Timestamp {
         + Duration::nanoseconds((fracs.2 + 1000 * (fracs.1 + 1000 * fracs.0)) as i64)
 }
 
-// (C)Copyright 2023, RW Penney
+// (C)Copyright 2023-2025, RW Penney

@@ -77,7 +77,7 @@ pub struct ECConfig {
 }
 
 impl ECConfig {
-    const CFG_FILENAME: &str = "eng-clock.toml";
+    const CFG_FILENAME: &'static str = "eng-clock.toml";
 
     /// Create a configuration parameters from a built-in global list of NTP servers
     pub fn default() -> ECConfig {
@@ -124,4 +124,4 @@ impl ECConfig {
     }
 }
 
-// (C)Copyright 2023, RW Penney
+// (C)Copyright 2023-2025, RW Penney

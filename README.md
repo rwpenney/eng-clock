@@ -63,4 +63,4 @@ an entry of the form:
 
 All files are released under the
 [GPL-v3](https://www.gnu.org/licenses/gpl-3.0.en.html)
-and are Copyright (C) 2023 RW Penney.
+and are Copyright (C) 2023-2025 RW Penney.
