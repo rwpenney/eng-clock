@@ -5,7 +5,7 @@
 
 use std::sync::mpsc;
 use std::thread;
-use chrono::{ NaiveDateTime, Utc };
+use chrono::DateTime;
 use crate::{ OffsetEvent, TickEvent, Timestamp, UImessage, UIsender, utc_now };
 
 
@@ -77,9 +77,9 @@ impl Ticker {
         let tick_id = (now_us + Ticker::PERIOD_US + Ticker::PERIOD_US / 4)
                             / Ticker::PERIOD_US;
         let step_us = (tick_id * Ticker::PERIOD_US) - now_us;
-        let t_next_nominal = Timestamp::from_utc(
-            NaiveDateTime::from_timestamp_micros(tick_id * Ticker::PERIOD_US)
-                .unwrap(), Utc);
+        let t_next_nominal =
+            DateTime::from_timestamp_micros(tick_id * Ticker::PERIOD_US)
+                .unwrap();
 
         ( t_next_nominal,
           tick_id,
