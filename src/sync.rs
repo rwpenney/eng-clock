@@ -3,10 +3,9 @@
  *  RW Penney, May 2023
  */
 
-use sntpc::{ NtpContext, NtpResult, NtpTimestampGenerator, NtpUdpSocket };
+use sntpc::{ NtpContext, NtpResult, NtpTimestampGenerator };
 use std::{
-    net::{ SocketAddr, ToSocketAddrs, UdpSocket },
-    rc::Rc,
+    net::{ UdpSocket },
     sync::mpsc,
     thread };
 use crate::{
@@ -34,27 +33,6 @@ impl NtpTimestampGenerator for StdTimestampGen {
     }
 }
 
-#[derive(Clone, Debug)]
-struct UdpSocketWrapper {
-    skt: Rc<UdpSocket>
-}
-
-impl NtpUdpSocket for UdpSocketWrapper {
-    fn send_to<T: ToSocketAddrs>(&self, buff: &[u8], addr: T) -> sntpc::Result<usize> {
-        match self.skt.send_to(buff, addr) {
-            Ok(usize) => Ok(usize),
-            Err(_) => Err(sntpc::Error::Network)
-        }
-    }
-
-    fn recv_from(&self, buff: &mut [u8]) -> sntpc::Result<(usize, SocketAddr)> {
-        match self.skt.recv_from(buff) {
-            Ok((size, addr)) => Ok((size, addr)),
-            Err(_) => Err(sntpc::Error::Network)
-        }
-    }
-}
-
 
 pub struct OffsetEstimator {
     tkr_channel: mpsc::Sender<OffsetEvent>,
@@ -66,7 +44,7 @@ pub struct OffsetEstimator {
     /// Bayesian statistical model of clock-offset
     stats: BayesOffset,
 
-    /// A collection of NTP server hostnames
+    /// A collection of NTP server hostname:port addresses
     ntp_servers: Vec<String>,
 
     /// The desired maximum uncertainty in the clock-offset, in seconds
@@ -79,12 +57,18 @@ impl OffsetEstimator {
 
     pub fn new(tkr_channel: mpsc::Sender<OffsetEvent>, ui_channel: UIsender,
                config: &SyncConfig) -> OffsetEstimator {
+
+        let ntp_servers =
+            config.ntp_servers.iter()
+                  .map(|h| format!("{h}:123"))
+                  .collect::<Vec<_>>();
+
         OffsetEstimator {
             tkr_channel,
             ui_channel,
             wakeup_interval: config.wakeup_interval,
             stats: BayesOffset::new(30.0),
-            ntp_servers: config.ntp_servers.clone(),
+            ntp_servers,
             target_precision: config.target_precision
         }
     }
@@ -95,15 +79,13 @@ impl OffsetEstimator {
                     .expect("Failed to bind UDP socket");
         skt.set_read_timeout(Some(std::time::Duration::from_secs_f64(2.5)))
            .expect("Failed to set UDP timeout");
-        let wrapped_skt = UdpSocketWrapper { skt: Rc::new(skt) };
         let ntp_ctxt = NtpContext::new(StdTimestampGen::default());
         let mut tick_count: u32 = 0;
 
         loop {
             let warmup = tick_count < 3;
 
-            let tick_time = self.check_precision(&wrapped_skt, &ntp_ctxt,
-                                                 warmup);
+            let tick_time = self.check_precision(&skt, &ntp_ctxt, warmup);
             tick_count += 1;
 
             let offs = OffsetEvent {
@@ -122,7 +104,7 @@ impl OffsetEstimator {
         }
     }
 
-    fn check_precision<T>(&mut self, skt: &UdpSocketWrapper,
+    fn check_precision<T>(&mut self, skt: &UdpSocket,
                           ctxt: &NtpContext<T>, force_ping: bool) -> Timestamp
             where T: NtpTimestampGenerator + Copy {
         let now = utc_now();
@@ -146,13 +128,13 @@ impl OffsetEstimator {
         }
     }
 
-    fn try_ntp_pings<T>(&self, skt: &UdpSocketWrapper, ctxt: &NtpContext<T>,
+    fn try_ntp_pings<T>(&self, skt: &UdpSocket, ctxt: &NtpContext<T>,
                         attempts: u8) -> sntpc::Result<NtpResult>
             where T: NtpTimestampGenerator + Copy {
         let mut err = None;
 
         for _ in 0 .. attempts {
-            match self.ntp_ping(skt.clone(), *ctxt) {
+            match self.ntp_ping(skt, *ctxt) {
                 Ok(ping) => return Ok(ping),
                 Err(e) =>   if err.is_none() {
                                 err = Some(Err(e)) }
@@ -162,13 +144,27 @@ impl OffsetEstimator {
         err.expect("Missing failure")
     }
 
-    fn ntp_ping<T>(&self, skt: UdpSocketWrapper,
+    fn ntp_ping<T>(&self, skt: &UdpSocket,
                    ctxt: NtpContext<T>) -> sntpc::Result<NtpResult>
             where T: NtpTimestampGenerator + Copy {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
+
+        use std::net::ToSocketAddrs;
+
         let servers = &self.ntp_servers;
-        let host = &servers[weak_rand() as usize % servers.len()];
-        sntpc::get_time((host.as_str(), 123u16), &skt, ctxt)
+        let tgt_server = &servers[weak_rand() as usize % servers.len()];
+
+        let remote =
+            tgt_server.to_socket_addrs()
+                      .map_err(|_err| sntpc::Error::AddressResolve)?
+                      .next()
+                      .ok_or(sntpc::Error::AddressResolve)?;
+
+        // FIXME - promoto runtime to parent
+        let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        runtime.block_on(async {
+            sntpc::get_time(remote, skt, ctxt).await
+        })
         // ping.offset should be *added* to local clock to approximate reference time
     }
 }
