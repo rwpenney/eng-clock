@@ -59,11 +59,14 @@ impl SyncConfig {
         crate::sync::OffsetEstimator::DEFAULT_WAKEUP_ITVL
     }
 
-    pub fn default() -> SyncConfig {
+}
+
+impl Default for SyncConfig {
+    fn default() -> Self {
         SyncConfig {
             ntp_servers:
                 DEFAULT_NTP_SERVERS.into_iter()
-                                   .map(|h| String::from(h)).collect(),
+                                   .map(String::from).collect(),
             target_precision: SyncConfig::default_tgt_precision(),
             wakeup_interval: SyncConfig::default_wakeup_itvl()
         }
@@ -78,13 +81,6 @@ pub struct ECConfig {
 
 impl ECConfig {
     const CFG_FILENAME: &'static str = "eng-clock.toml";
-
-    /// Create a configuration parameters from a built-in global list of NTP servers
-    pub fn default() -> ECConfig {
-        ECConfig {
-            sync: SyncConfig::default()
-        }
-    }
 
     /// Read configuration settings from a TOML file
     ///
@@ -101,7 +97,7 @@ impl ECConfig {
     /// ```
     pub fn from_toml(s: &str) -> Result<ECConfig, ConfigReadError> {
         toml::from_str::<ECConfig>(s)
-            .map_err(|e| ConfigReadError::TomlError(e))
+            .map_err(ConfigReadError::TomlError)
     }
 
     /// Read TOML configuration settings from a supplied filesystem path
@@ -124,4 +120,13 @@ impl ECConfig {
     }
 }
 
-// (C)Copyright 2023-2025, RW Penney
+impl Default for ECConfig {
+    /// Create a configuration parameters from a built-in global list of NTP servers
+    fn default() -> ECConfig {
+        ECConfig {
+            sync: SyncConfig::default()
+        }
+    }
+}
+
+// (C)Copyright 2023-2026, RW Penney

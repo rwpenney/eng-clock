@@ -88,7 +88,7 @@ fn weak_rand() -> u32 {
 
     unsafe {
         COUNTER = (COUNTER * 0x5deece66d + 11) & ((1 << 48) - 1);
-        ((dt.as_nanos() * 0x56cae88f ^ COUNTER) % 4294967291) as u32
+        (((dt.as_nanos() * 0x56cae88f) ^ COUNTER) % 4294967291) as u32
     }
 }
 
@@ -118,4 +118,4 @@ mod tests {
     }
 }
 
-// (C)Copyright 2023-2025, RW Penney
+// (C)Copyright 2023-2026, RW Penney

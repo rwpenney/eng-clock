@@ -152,7 +152,7 @@ impl OffsetEstimator {
         let mut err = None;
 
         for _ in 0 .. attempts {
-            match self.ntp_ping(skt.clone(), ctxt.clone()) {
+            match self.ntp_ping(skt.clone(), *ctxt) {
                 Ok(ping) => return Ok(ping),
                 Err(e) =>   if err.is_none() {
                                 err = Some(Err(e)) }
@@ -168,9 +168,9 @@ impl OffsetEstimator {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
         let servers = &self.ntp_servers;
         let host = &servers[weak_rand() as usize % servers.len()];
-        sntpc::get_time((host.as_str(), 123u16), skt, ctxt)
+        sntpc::get_time((host.as_str(), 123u16), &skt, ctxt)
         // ping.offset should be *added* to local clock to approximate reference time
     }
 }
 
-// (C)Copyright 2023-2025, RW Penney
+// (C)Copyright 2023-2026, RW Penney
