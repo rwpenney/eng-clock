@@ -155,6 +155,7 @@ impl OffsetEstimator {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
 
         use std::net::ToSocketAddrs;
+        use sntpc_net_std::UdpSocketWrapper;
 
         let servers = &self.ntp_servers;
         let tgt_server = &servers[weak_rand() as usize % servers.len()];
@@ -164,8 +165,10 @@ impl OffsetEstimator {
                       .map_err(|_err| sntpc::Error::AddressResolve)?
                       .next()
                       .ok_or(sntpc::Error::AddressResolve)?;
+        let local =
+            UdpSocketWrapper::new(skt.try_clone().unwrap());
 
-        sntpc::get_time(remote, skt, ctxt).await
+        sntpc::get_time(remote, &local, ctxt).await
         // ping.offset should be *added* to local clock to approximate reference time
     }
 }

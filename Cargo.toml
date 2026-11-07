@@ -1,6 +1,6 @@
 [package]
 name = "eng-clock"
-version = "1.1.2"
+version = "1.1.3"
 edition = "2024"
 
 [dependencies]
@@ -11,7 +11,8 @@ dirs = "= 5.0"
 gtk = "= 0.15"
 serde = { version = "= 1.0", features = ["derive"] }
 serde_spanned = "= 0.6.0"
-sntpc = "= 0.6.1"
+sntpc = { version = "= 0.10.1", features = ["defmt"] }
+sntpc-net-std = "= 1.2.0"
 tokio = { version = "1.0", features = ["rt"] }
 toml = "= 0.4"
 toml_datetime = "= 0.6.0"
