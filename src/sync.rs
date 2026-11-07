@@ -82,10 +82,15 @@ impl OffsetEstimator {
         let ntp_ctxt = NtpContext::new(StdTimestampGen::default());
         let mut tick_count: u32 = 0;
 
+        let runtime =
+            tokio::runtime::Builder::new_current_thread().build().unwrap();
+            // FIXME - expore if parent thread can replaced with async runtime
+
         loop {
             let warmup = tick_count < 3;
 
-            let tick_time = self.check_precision(&skt, &ntp_ctxt, warmup);
+            let tick_time = runtime.block_on(
+                                self.check_precision(&skt, &ntp_ctxt, warmup));
             tick_count += 1;
 
             let offs = OffsetEvent {
@@ -104,7 +109,7 @@ impl OffsetEstimator {
         }
     }
 
-    fn check_precision<T>(&mut self, skt: &UdpSocket,
+    async fn check_precision<T>(&mut self, skt: &UdpSocket,
                           ctxt: &NtpContext<T>, force_ping: bool) -> Timestamp
             where T: NtpTimestampGenerator + Copy {
         let now = utc_now();
@@ -114,7 +119,7 @@ impl OffsetEstimator {
             return now;
         }
 
-        if let Ok(sync) = self.try_ntp_pings(skt, ctxt, 3) {
+        if let Ok(sync) = self.try_ntp_pings(skt, ctxt, 3).await {
             let obs_time = utc_now();
             self.stats.add_observation(sync.offset as f32 * 1e-6,
                                        sync.roundtrip as f32 * 0.25e-6 +
@@ -128,13 +133,13 @@ impl OffsetEstimator {
         }
     }
 
-    fn try_ntp_pings<T>(&self, skt: &UdpSocket, ctxt: &NtpContext<T>,
+    async fn try_ntp_pings<T>(&self, skt: &UdpSocket, ctxt: &NtpContext<T>,
                         attempts: u8) -> sntpc::Result<NtpResult>
             where T: NtpTimestampGenerator + Copy {
         let mut err = None;
 
         for _ in 0 .. attempts {
-            match self.ntp_ping(skt, *ctxt) {
+            match self.ntp_ping(skt, *ctxt).await {
                 Ok(ping) => return Ok(ping),
                 Err(e) =>   if err.is_none() {
                                 err = Some(Err(e)) }
@@ -144,7 +149,7 @@ impl OffsetEstimator {
         err.expect("Missing failure")
     }
 
-    fn ntp_ping<T>(&self, skt: &UdpSocket,
+    async fn ntp_ping<T>(&self, skt: &UdpSocket,
                    ctxt: NtpContext<T>) -> sntpc::Result<NtpResult>
             where T: NtpTimestampGenerator + Copy {
         // See https://datatracker.ietf.org/doc/html/rfc5905#section-7.3
@@ -160,11 +165,7 @@ impl OffsetEstimator {
                       .next()
                       .ok_or(sntpc::Error::AddressResolve)?;
 
-        // FIXME - promoto runtime to parent
-        let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
-        runtime.block_on(async {
-            sntpc::get_time(remote, skt, ctxt).await
-        })
+        sntpc::get_time(remote, skt, ctxt).await
         // ping.offset should be *added* to local clock to approximate reference time
     }
 }
